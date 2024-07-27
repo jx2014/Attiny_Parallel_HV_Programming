@@ -170,7 +170,8 @@ void showWriteMenu() {
           helpWriteMenu();
           break;
         case '4':
-          Serial.println(" Write EEPROM is not yet implemented");
+          writeEEPROM();
+          helpWriteMenu();
           break;
         case 'q':
           return;
@@ -459,6 +460,47 @@ void writeFlash() {
     }
   }
 }
+
+void writeEEPROM() {
+  loadCommand(WRITE_EEPROM);
+  uint8_t dataByte;
+  while (true) {
+    while (true) {
+      Serial.println("Enter address high and low bytels to write EEPROM, enter 'q' to go back to write menu, enter 'w' to write page");  
+      readLine();
+      Serial.println();
+      if (inChars[0] == 'q' | inChars[0] == 'w') {
+        break;
+      }
+      address = (hexCharToByte(inChars[0]) << 4) | hexCharToByte(inChars[1]);
+      loadAddress(address, 1); // load high byte address
+      address = (hexCharToByte(inChars[2]) << 4) | hexCharToByte(inChars[3]);
+      loadAddress(address, 0); // load low byte address
+
+      Serial.println("Enter data (two bytes) to write EEPROM");
+      readLine();
+      Serial.println();
+
+      data = (hexCharToByte(inChars[0]) << 4) | hexCharToByte(inChars[1]);
+      loadData(data, 0);
+    }
+
+    if (inChars[0] == 'w') {
+      digitalWrite(BS1, LOW);  
+      pulseWR();
+      while (!isReady()) {
+        delayMicroseconds(1);
+      }
+      Serial.println("EEPROM written successfully");  
+    }
+
+    if (inChars[0] == 'q') {
+      loadCommand(NO_OPER);
+      return;
+    }
+  }
+}
+
 
 void pulseXTAL1() {
    digitalWrite(XTAL1, HIGH);
