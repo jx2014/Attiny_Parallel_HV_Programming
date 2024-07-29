@@ -30,6 +30,7 @@
 #define PB0 A1
 
 #define PWR_ON A3
+#define MAX_ADDRESS 1024
 
 const uint8_t BUFFER_SIZE = 8;
 bool power_on = 1;
@@ -132,6 +133,10 @@ void showReadMenu() {
           readEEPROM();
           helpReadMenu();
           break;
+        case '5':
+          readAllFlash();
+          helpReadMenu();
+          break;
         case 'q':
           return;
         default:
@@ -148,6 +153,7 @@ void helpReadMenu() {
     Serial.println("2 - Read Fuse/Lock Bits");
     Serial.println("3 - Read Flash");
     Serial.println("4 - Read EEPROM");
+    Serial.println("5 - Read All Flash");
     Serial.println("q - Quit to Main Menu");
 }
 
@@ -255,7 +261,7 @@ void readFlash() {
     loadAddress(address, 0); // load low byte address
 
     digitalWrite(OE_N, LOW);
-    
+
     // read low byte data
     digitalWrite(BS1, LOW);
     dataByte = readData();
@@ -273,8 +279,51 @@ void readFlash() {
       Serial.print('0');
     }
     Serial.println(dataByte, HEX);    
+
   }
   digitalWrite(OE_N, HIGH);
+}
+
+void readAllFlash() {
+  loadCommand(READ_FLASH);
+  uint8_t dataByte;  
+  uint16_t n = 0;
+  uint8_t high_address = n >> 8;
+  
+  while (n < MAX_ADDRESS) {
+    
+    if (high_address != (n >> 8)) {
+      high_address = n >> 8;
+      loadAddress(high_address, 1); // load high byte address
+    }
+    loadAddress((n & 0xFF), 0); // load low byte address
+
+    digitalWrite(OE_N, LOW);
+
+    // read low byte data
+    digitalWrite(BS1, LOW);
+    dataByte = readData();
+
+    if (dataByte < 0x10) {
+      Serial.print('0');
+    }
+    Serial.print(dataByte, HEX);
+
+    // read high byte
+    digitalWrite(BS1, HIGH);
+    dataByte = readData();
+
+    if (dataByte < 0x10) {
+      Serial.print('0');
+    }
+    Serial.print(dataByte, HEX);    
+
+    Serial.print(' ');    
+
+    n += 1;
+  }
+  digitalWrite(OE_N, HIGH);
+  Serial.println("Done!");    
 }
 
 void readEEPROM() {
@@ -310,12 +359,28 @@ void readEEPROM() {
 void chipErase() {
   Serial.println("Erasing Chip...");
   digitalWrite(XA1, HIGH);
-  digitalWrite(XA0, LOW);
-  digitalWrite(BS1, LOW);  
-  setData(CHIP_ERASE);
-  pulseXTAL1();
   delayMicroseconds(1);
+  digitalWrite(XA0, LOW);
+  delayMicroseconds(1);
+  digitalWrite(BS1, LOW);  
+  delayMicroseconds(1);
+  setData(CHIP_ERASE);
+  delayMicroseconds(1);
+  pulseXTAL1();
+  while (!isReady()) {
+    delayMicroseconds(10);
+  }
   pulseWR();
+  while (!isReady()) {
+    delayMicroseconds(10);
+  }
+  // need power cycling the device to take effect.
+  powerDownDevice();
+  delayMicroseconds(500);
+  powerUpDevice();
+  while (!isReady()) {
+    delayMicroseconds(1);
+  }
   Serial.println("Chip Erased.");
 }
 
@@ -543,6 +608,9 @@ void loadData(uint8_t data, bool high_byte) {
   setData(data);
   delayMicroseconds(1);
   pulseXTAL1();
+  while (!isReady()) {
+    delayMicroseconds(1);
+  }
   digitalWrite(XA0, LOW);
   digitalWrite(BS1, LOW);
 }
@@ -562,6 +630,9 @@ void loadAddress(uint8_t addr, bool high_byte) {
   setData(addr);
   delayMicroseconds(1);
   pulseXTAL1();
+  while (!isReady()) {
+    delayMicroseconds(1);
+  }
   digitalWrite(XA0, LOW);
   digitalWrite(BS1, LOW);
 }
